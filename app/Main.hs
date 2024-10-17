@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Lib
+import RBTree
 
 main :: IO ()
-main = someFunc
+main = putStrLn $ show $ RBTree.lookup 4 RBTree.dict
