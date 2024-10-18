@@ -1,6 +1,6 @@
 module Main (main) where
 
-import RBTree
+import RBTree as RB
 
 main :: IO ()
-main = putStrLn $ show $ RBTree.lookup 4 RBTree.dict
+main =  print $ RB.lookup' 512 $ RB.fromList' [(x, x+1) | x <- [1..10000]] --print $ RB.insert' 1 12 RB.dict
