@@ -2,7 +2,7 @@
 -- For RBTree data
 {-# OPTIONS_GHC -Wno-partial-fields #-}
 
-module RBTree (lookup', insert', fromList', remove', foldr'', foldl'', map', filter') where
+module RBTree (lookup', insert', fromList', remove', foldr'', foldl'', map', filter', RBDictionary) where
 
 data Color = Black | Red deriving (Show, Eq, Ord)
 
@@ -15,7 +15,7 @@ data (Ord a) => RBDictionary a b
         left :: RBDictionary a b,
         right :: RBDictionary a b
       }
-  deriving (Show, Eq)
+  deriving (Show)
 
 type RBD = RBDictionary
 
@@ -32,6 +32,27 @@ instance (Ord a) => Monoid (RBDictionary a b) where
     where
       go [] n = n
       go (d : ds) n = go ds (n <> d)
+
+instance (Eq b, Ord a) => Eq (RBDictionary a b) where
+  (==) :: RBDictionary a b -> RBDictionary a b -> Bool
+  (==) a b = aInB && bInA
+    where
+      aInB =
+        foldl''
+          ( \(k, v) acc -> case lookup' k b of
+              Just value -> (value == v) && acc
+              Nothing -> False
+          )
+          True
+          a
+      bInA =
+        foldl''
+          ( \(k, v) acc -> case lookup' k a of
+              Just value -> (value == v) && acc
+              Nothing -> False
+          )
+          True
+          b
 
 {-
 
