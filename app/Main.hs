@@ -3,4 +3,4 @@ module Main (main) where
 import RBTree as RB
 
 main :: IO ()
-main =  print $ RB.lookup' 512 $ RB.fromList' [(x, x+1) | x <- [1..10000]] --print $ RB.insert' 1 12 RB.dict
+main =  print $ RB.filter' (\v -> v > 3) $ RB.fromList' [(1,1), (2,2), (3,3), (4,4), (5,5)]

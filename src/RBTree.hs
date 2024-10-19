@@ -1,7 +1,8 @@
+{-# LANGUAGE InstanceSigs #-}
 -- For RBTree data
 {-# OPTIONS_GHC -Wno-partial-fields #-}
 
-module RBTree (lookup', insert', fromList') where
+module RBTree (lookup', insert', fromList', remove', foldr'', foldl'', map', filter') where
 
 data Color = Black | Red deriving (Show, Eq, Ord)
 
@@ -17,6 +18,20 @@ data (Ord a) => RBDictionary a b
   deriving (Show, Eq)
 
 type RBD = RBDictionary
+
+instance (Ord a) => Semigroup (RBDictionary a b) where
+  (<>) :: RBDictionary a b -> RBDictionary a b -> RBDictionary a b
+  (<>) = foldr'' (\(k, v) acc -> insert' k v acc)
+
+instance (Ord a) => Monoid (RBDictionary a b) where
+  mempty :: RBDictionary a b
+  mempty = Leaf
+
+  mconcat :: [RBDictionary a b] -> RBDictionary a b
+  mconcat dicts = go dicts Leaf
+    where
+      go [] n = n
+      go (d : ds) n = go ds (n <> d)
 
 {-
 
@@ -93,77 +108,82 @@ insertImpl' k v n@Node {key = nk, left = nl@Node {}, right = nr@Node {}}
   | otherwise = n {right = insertImpl' k v nr}
 
 remove' :: (Ord a) => a -> RBD a b -> RBD a b
-remove' _ Leaf = Leaf
--- Root removal
-remove' k n@Node {key = nk, left = Leaf, right = Leaf}
-  | k == nk = Leaf
-  | otherwise = n
-remove' k n@Node {key = nk, left = Leaf, right = nr@Node {}}
-  | k == nk = tryRemoveAndBalance' k n
-  | otherwise = n {right = tryRemoveAndBalance' k nr}
-remove' k n@Node {key = nk, left = nl@Node {}, right = Leaf}
-  | k == nk = tryRemoveAndBalance' k n
-  | otherwise = n {left = tryRemoveAndBalance' k nl}
-remove' k n@Node {key = nk, left = nl@Node {}, right = nr@Node {}}
-  | k == nk = n {key = key next, right = remove' (key next) n}
-  | is2Node nl && is2Node nr = removeImpl' k n {left = nl {color = Red}, right = nr {color = Red}}
-  | otherwise = removeImpl' k n
+remove' k d = fixRoot $ removeImpl' k d
   where
-    next = min' nr
+    fixRoot n@Node {} = n {color = Black}
+    fixRoot Leaf = Leaf
 
 removeImpl' :: (Ord a) => a -> RBD a b -> RBD a b
 removeImpl' _ Leaf = Leaf
+removeImpl' k n@Node {key = nk, left = nl, right = nr}
+  | k < nk = removeLeft k n
+  | k > nk = removeRight k n
+  | otherwise = combine nl nr
 
-removeImpl' k n@Node {key = nk, color = Black, left = Leaf, right = nr@Node{}}
-  | k < nk = n
-  | otherwise = n{right = tryRemoveAndBalance' k nr}
+removeLeft :: (Ord a) => a -> RBD a b -> RBD a b
+removeLeft k n@Node {color = Black, left = nl} = balanceLeft $ n {left = removeImpl' k nl}
+removeLeft k n@Node {color = Red, left = nl} = n {left = removeImpl' k nl}
+removeLeft _ n = n
 
-removeImpl' k n@Node {key = nk, color = Black, left = nl@Node{}, right = Leaf}
-  | k > nk = n
-  | otherwise = n{left = tryRemoveAndBalance' k nl}
+balanceLeft :: (Ord a) => RBD a b -> RBD a b
+balanceLeft n@Node {color = Black, left = nl@Node {color = Red}} = n {color = Red, left = nl {color = Black}}
+balanceLeft n@Node {color = Black, right = nr@Node {color = Black}} = balanceTree' n {right = nr {color = Red}}
+balanceLeft n@Node {color = Black, right = nr@Node {color = Red, left = nrl@Node {color = Black}, right = nrr@Node {color = Black}}} =
+  nrl {color = Red, left = n {right = left nrl}, right = balanceTree' $ nr {color = Black, left = right nrl, right = nrr {color = Red}}}
+balanceLeft n = n
 
-removeImpl' k n@Node {key = nk, color = Black, left = Leaf, right = Leaf}
-  | k == nk = Leaf
-  | otherwise = n
-  
-removeImpl' k n@Node {key = nk, color = Black, left = nl@Node{}, right = nr@Node{}}
-  = if k < nk then removeLeft else removeRight
-    where removeLeft = case nl of 
-                    l@Node{color=Red, key = lk} -> if lk == k 
-                      then 
-                       case (left l, right l) of
-                            (Leaf, _) -> n {left = tryRemoveAndBalance' k l}
-                            (_, Leaf) -> n {left = tryRemoveAndBalance' k l} 
-                            (_, _) -> removeImpl' k n {left=nl{key = key next, right = setMin' k $ right nl}}
-                              where next = min' & right l 
-                      else case (left l, right l) of
-                         (ll@Node{}, lr@Node{}) -> 
-removeImpl' _ _ = undefined
--- removeImpl' k n@Node{key = nk, color = Black, }
+removeRight :: (Ord a) => a -> RBD a b -> RBD a b
+removeRight k n@Node {color = Black, right = nr} = balanceRight $ n {right = removeImpl' k nr}
+removeRight k n@Node {color = Red, right = nr} = n {right = removeImpl' k nr}
+removeRight _ n = n
 
-tryRemoveAndBalance' :: (Ord a) => a -> RBD a b -> RBD a b
-tryRemoveAndBalance' _ Leaf = Leaf
-tryRemoveAndBalance' k n@Node {color = Red, key = nk}
-  | k /= nk = n
-  | otherwise = Leaf
-tryRemoveAndBalance' k n@Node {color = Black, key = nk, left = Leaf}
-  | k /= nk = n
-  | otherwise = if right n == Leaf then Leaf else (right n) {color = Black}
-tryRemoveAndBalance' k n@Node {color = Black, key = nk, right = Leaf}
-  | k /= nk = n
-  | otherwise = (left n) {color = Black}
-tryRemoveAndBalance' _ n@Node {color = Black} = n
+balanceRight :: (Ord a) => RBD a b -> RBD a b
+balanceRight n@Node {color = Black, right = nr@Node {color = Red}} = n {color = Red, right = nr {color = Black}}
+balanceRight n@Node {color = Black, left = nl@Node {color = Black}} = balanceTree' n {left = nl {color = Red}}
+balanceRight n@Node {color = Black, left = nl@Node {color = Red, left = nll@Node {color = Black}, right = nlr@Node {color = Black}}} =
+  nlr {color = Red, right = n {left = right nlr}, left = balanceTree' $ nl {color = Black, left = nll {color = Red}, right = left nlr}}
+balanceRight n = n
 
-min' :: (Ord a) => RBD a b -> RBD a b
-min' Leaf = Leaf
-min' n@Node {left = nl}
-  | nl == Leaf = n
-  | otherwise = min' nl
+balanceTree' :: (Ord a) => RBD a b -> RBD a b
+balanceTree' (Node Black zk zv (Node Red yk yv (Node Red xk xv a b) c) d) = Node Red yk yv (Node Black xk xv a b) (Node Black zk zv c d)
+balanceTree' (Node Black zk zv (Node Red xk xv a (Node Red yk yv b c)) d) = Node Red yk yv (Node Black xk xv a b) (Node Black zk zv c d)
+balanceTree' (Node Black xk xv a (Node Red zk zv (Node Red yk yv b c) d)) = Node Red yk yv (Node Black xk xv a b) (Node Black zk zv c d)
+balanceTree' (Node Black xk xv a (Node Red yk yv b (Node Red zk zv c d))) = Node Red yk yv (Node Black xk xv a b) (Node Black zk zv c d)
+balanceTree' n = n
 
-setMin' _ Leaf=  Leaf
-setMin' k n@Node {left = nl}
-  | nl == Leaf = n{key = k}
-  | otherwise = setMin' k nl
+combine :: (Ord a) => RBD a b -> RBD a b -> RBD a b
+combine Leaf n = n
+combine n Leaf = n
+combine l@Node {color = Black} r@Node {color = Red} = r {left = combine l $ left r}
+combine l@Node {color = Red} r@Node {color = Black} = l {right = combine (right l) r}
+combine l@Node {color = Red} r@Node {color = Red} =
+  let s = combine (right l) (left r)
+   in case s of
+        rs@Node {color = Red} -> rs {left = l {right = left rs}, right = r {left = right rs}}
+        Node {color = Black} -> l {right = r {left = s}}
+        _ -> undefined
+combine l@Node {color = Black} r@Node {color = Black} =
+  let s = combine (right l) (left r)
+   in case s of
+        rs@Node {color = Red} -> rs {left = l {right = left rs}, right = r {left = right rs}}
+        Node {color = Black} -> balanceLeft l {right = r {left = s}}
+        _ -> undefined
 
-is2Node n@Node {color = Black, left = Node {color = Black}, right = Node {color = Black}} = True
-is2Node _ = False
+foldr'' :: (Ord a) => ((a, b) -> c -> c) -> c -> RBD a b -> c
+foldr'' _ acc Leaf = acc
+foldr'' f acc n@Node {} = foldr'' f rightAcc (left n)
+  where
+    rightAcc = f (key n, val n) $ foldr'' f acc (right n)
+
+foldl'' :: (Ord a) => ((a, b) -> c -> c) -> c -> RBD a b -> c
+foldl'' _ acc Leaf = acc
+foldl'' f acc n@Node {} = foldl'' f (f (key n, val n) leftAcc) (right n)
+  where
+    leftAcc = foldl'' f acc (left n)
+
+map' :: (Ord a) => (b -> c) -> RBD a b -> RBD a c
+map' _ Leaf = Leaf
+map' p n@Node {} = n {val = p $ val n, left = map' p $ left n, right = map' p $ right n}
+
+filter' :: (Ord a) => (b -> Bool) -> RBD a b -> RBD a b
+filter' p = foldr'' (\(k, v) d -> if p v then insert' k v d else d) (fromList' [])
