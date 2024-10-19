@@ -1,7 +1,7 @@
 -- For RBTree data
 {-# OPTIONS_GHC -Wno-partial-fields #-}
 
-module RBTree (dict, lookup', insert', fromList') where
+module RBTree (lookup', insert', fromList') where
 
 data Color = Black | Red deriving (Show, Eq, Ord)
 
@@ -92,6 +92,78 @@ insertImpl' k v n@Node {key = nk, left = nl@Node {}, right = nr@Node {}}
   | k < nk = n {left = insertImpl' k v nl}
   | otherwise = n {right = insertImpl' k v nr}
 
+remove' :: (Ord a) => a -> RBD a b -> RBD a b
+remove' _ Leaf = Leaf
+-- Root removal
+remove' k n@Node {key = nk, left = Leaf, right = Leaf}
+  | k == nk = Leaf
+  | otherwise = n
+remove' k n@Node {key = nk, left = Leaf, right = nr@Node {}}
+  | k == nk = tryRemoveAndBalance' k n
+  | otherwise = n {right = tryRemoveAndBalance' k nr}
+remove' k n@Node {key = nk, left = nl@Node {}, right = Leaf}
+  | k == nk = tryRemoveAndBalance' k n
+  | otherwise = n {left = tryRemoveAndBalance' k nl}
+remove' k n@Node {key = nk, left = nl@Node {}, right = nr@Node {}}
+  | k == nk = n {key = key next, right = remove' (key next) n}
+  | is2Node nl && is2Node nr = removeImpl' k n {left = nl {color = Red}, right = nr {color = Red}}
+  | otherwise = removeImpl' k n
+  where
+    next = min' nr
 
+removeImpl' :: (Ord a) => a -> RBD a b -> RBD a b
+removeImpl' _ Leaf = Leaf
 
-dict = Node {color = Red, key = 5, val = 6, left = Node {color = Red, key = 4, val = 7, left = Leaf, right = Leaf}, right = Leaf}
+removeImpl' k n@Node {key = nk, color = Black, left = Leaf, right = nr@Node{}}
+  | k < nk = n
+  | otherwise = n{right = tryRemoveAndBalance' k nr}
+
+removeImpl' k n@Node {key = nk, color = Black, left = nl@Node{}, right = Leaf}
+  | k > nk = n
+  | otherwise = n{left = tryRemoveAndBalance' k nl}
+
+removeImpl' k n@Node {key = nk, color = Black, left = Leaf, right = Leaf}
+  | k == nk = Leaf
+  | otherwise = n
+  
+removeImpl' k n@Node {key = nk, color = Black, left = nl@Node{}, right = nr@Node{}}
+  = if k < nk then removeLeft else removeRight
+    where removeLeft = case nl of 
+                    l@Node{color=Red, key = lk} -> if lk == k 
+                      then 
+                       case (left l, right l) of
+                            (Leaf, _) -> n {left = tryRemoveAndBalance' k l}
+                            (_, Leaf) -> n {left = tryRemoveAndBalance' k l} 
+                            (_, _) -> removeImpl' k n {left=nl{key = key next, right = setMin' k $ right nl}}
+                              where next = min' & right l 
+                      else case (left l, right l) of
+                         (ll@Node{}, lr@Node{}) -> 
+removeImpl' _ _ = undefined
+-- removeImpl' k n@Node{key = nk, color = Black, }
+
+tryRemoveAndBalance' :: (Ord a) => a -> RBD a b -> RBD a b
+tryRemoveAndBalance' _ Leaf = Leaf
+tryRemoveAndBalance' k n@Node {color = Red, key = nk}
+  | k /= nk = n
+  | otherwise = Leaf
+tryRemoveAndBalance' k n@Node {color = Black, key = nk, left = Leaf}
+  | k /= nk = n
+  | otherwise = if right n == Leaf then Leaf else (right n) {color = Black}
+tryRemoveAndBalance' k n@Node {color = Black, key = nk, right = Leaf}
+  | k /= nk = n
+  | otherwise = (left n) {color = Black}
+tryRemoveAndBalance' _ n@Node {color = Black} = n
+
+min' :: (Ord a) => RBD a b -> RBD a b
+min' Leaf = Leaf
+min' n@Node {left = nl}
+  | nl == Leaf = n
+  | otherwise = min' nl
+
+setMin' _ Leaf=  Leaf
+setMin' k n@Node {left = nl}
+  | nl == Leaf = n{key = k}
+  | otherwise = setMin' k nl
+
+is2Node n@Node {color = Black, left = Node {color = Black}, right = Node {color = Black}} = True
+is2Node _ = False
