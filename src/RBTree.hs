@@ -17,7 +17,7 @@ to insertion and Matt Might's removal (https://matt.might.net/articles/red-black
 
 -}
 
-module RBTree (lookup', insert', fromList', RBDictionary (..), foldr'', foldl'', map', filter', remove') where
+module RBTree (lookup', insert', fromList', RBDictionary (..), foldr'', foldl'', map', filter', remove', isHeightvalid, isColorlyValid) where
 
 -- Order is significant for redder & blacker
 data Color
@@ -132,12 +132,17 @@ insertImpl' k v n@Node {key = nk, left = nl, right = nr}
 insertImpl' _ _ BBLeaf = error "double black leaf in lookup context"
 
 remove' :: (Ord a) => a -> RBD a b -> RBD a b
-remove' k n@Node {} = new {color = B}
+remove' k n@Node {} = new 
   where
-    new = removeImpl' k n
+    new = case removeImpl' k n of
+      node@Node{} -> node{color=B}
+      Leaf -> Leaf
+      BBLeaf -> Leaf
+
 remove' _ n = n
 
 removeImpl' :: (Ord a) => a -> RBD a b -> RBD a b
+removeImpl' _ Leaf = Leaf
 removeImpl' k n@Node {key = nk, left = nl, right = nr}
   | k < nk = bubble $ n {left = removeImpl' k nl}
   | k == nk = removeNode n
@@ -195,8 +200,6 @@ balance (Node BB z zv (Node NB x xv (Node B w wv a b) (Node B y yv c d)) e) = No
 balance (Node BB z zv a (Node NB x xv (Node B w wv b c) (Node B y yv d e))) = Node B w wv (Node B z zv a b) (balance $ Node B x xv c (Node R y yv d e))
 balance n = n
 
-
-
 foldr'' :: (Ord a) => ((a, b) -> c -> c) -> c -> RBD a b -> c
 foldr'' _ acc Leaf = acc
 foldr'' f acc n@Node {} = foldr'' f rightAcc (left n)
@@ -218,3 +221,41 @@ map' _ BBLeaf = error "Double Black leaf in map context"
 
 filter' :: (Ord a) => (b -> Bool) -> RBD a b -> RBD a b
 filter' p = foldr'' (\(k, v) d -> if p v then insert' k v d else d) (fromList' [])
+
+{-
+=======================
+Invariant Check Implementation
+  used by QuickCheck
+=======================
+-}
+
+isColorlyValid :: (Ord a) => RBD a b -> Bool
+isColorlyValid Leaf = True
+isColorlyValid d@Node {color = B} = go d
+  where
+    go Leaf = True
+    go Node {color = B, left = nl, right = nr} = go nr && go nl
+    go Node {color = R, left = nl@Node {color = B}, right = nr@Node {color = B}} = go nr && go nl
+    go Node {color = R, left = nl@Node {color = B}, right = Leaf} = go nl
+    go Node {color = R, left = Leaf, right = nr@Node {color = B}} = go nr
+    go Node {color = R, left = Leaf, right = Leaf} = True
+    go _ = False
+isColorlyValid _ = False
+
+isHeightvalid :: (Ord a) => RBD a b -> Bool
+isHeightvalid Leaf = True
+isHeightvalid d@Node {} = snd $ go d
+  where
+    go Leaf = (1::Integer, True)
+    go Node {color = col, left = nl, right = nr} =
+      ( fst l
+          + if col == B
+            then 1
+            else 0,
+        snd l && snd r && (fst l == fst r)
+      )
+      where
+        l = go nl
+        r = go nr
+    go _ = (0, False)
+isHeightvalid _ = False

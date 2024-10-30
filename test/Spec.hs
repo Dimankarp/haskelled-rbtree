@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 import Data.Maybe (isJust, isNothing)
 import RBTree
 import Test.HUnit
@@ -5,9 +7,25 @@ import Test.QuickCheck
 
 main :: IO ()
 main = do
-  -- quickCheck (monoidAssoc :: (RBDictionary Int Int) -> (RBDictionary Int Int) -> (RBDictionary Int Int) -> Bool)
-  -- quickCheck (monoidLeftIdentity :: (RBDictionary Int Int) -> Bool)
-  -- quickCheck (monoidRightIdentity :: (RBDictionary Int Int) -> Bool)
+  print "monoidAssoc"
+  quickCheck (monoidAssoc :: RBDictionary Int Int -> RBDictionary Int Int -> RBDictionary Int Int -> Bool)
+  print "monoidLeftIdentity"
+  quickCheck (monoidLeftIdentity :: RBDictionary Int Int -> Bool)
+  print "monoidRightIdentity"
+  quickCheck (monoidRightIdentity :: RBDictionary Int Int -> Bool)
+  print "redblackColorInvariant"
+  quickCheck (redblackColorInvariant :: RBDictionary Int Int -> Bool)
+  print "redblackHeightInvariant"
+  quickCheck (redblackHeightInvariant :: RBDictionary Int Int -> Bool)
+  print "redblackFullInvariant"
+  quickCheck (redblackFullInvariant :: RBDictionary Int Int -> Bool)
+  print "redblackColorInvariantAfterActions"
+  quickCheck (redblackColorInvariantAfterActions :: RBDictionary Int Int -> [Int] -> [(Int, Int)] -> Bool)
+  print "redblackHeightInvariantAfterActions"
+  quickCheck (redblackHeightInvariantAfterActions :: RBDictionary Int Int -> [Int] -> [(Int, Int)] -> Bool)
+  print "redblackFullInvariantAfterActions"
+  quickCheck (redblackFullInvariantAfterActions :: RBDictionary Int Int -> [Int] -> [(Int, Int)] -> Bool)
+
   runTestTTAndExit tests
 
 equalityTest :: Test
@@ -40,9 +58,10 @@ checkInsert =
 checkInsertFull :: Test
 checkInsertFull =
   TestCase (assertBool "All elements must be in dictionary" $ and ls)
-    where list = [(x, x) | x <- [1 .. 1000 :: Int]]
-          d  = fromList' list
-          ls = [fst v == Just (snd v) | v <- zip (map (flip lookup' d . fst) list) (map snd list)]
+  where
+    list = [(x, x) | x <- [1 .. 1000 :: Int]]
+    d = fromList' list
+    ls = [fst v == Just (snd v) | v <- zip (map (flip lookup' d . fst) list) (map snd list)]
 
 checkRemoval :: (Ord a, Show a) => RBDictionary a b -> a -> Assertion
 checkRemoval d k = do
@@ -77,30 +96,67 @@ tests =
     [ TestLabel "Equality check" equalityTest,
       TestLabel "Inequlity check" inequalityTest,
       TestLabel "Consequtive Insert" checkInsert,
-      TestLabel  "Full lookup check after all inserts" checkInsertFull,
+      TestLabel "Full lookup check after all inserts" checkInsertFull,
       TestLabel "Consequtive Removal" conseqRemoval,
       TestLabel "Mapping" checkMap,
       TestLabel "Folding to sum" checkFold
     ]
 
--- instance (Ord a, Arbitrary a, Arbitrary b) => Arbitrary (RBDictionary a b) where
---   arbitrary = do
---     pairs <- listOf ((,) <$> arbitrary <*> arbitrary)
---     return $ fromList' pairs
+instance (Ord a, Eq a, Arbitrary a, Arbitrary b) => Arbitrary (RBDictionary a b) where
+  arbitrary = do
+    pairs <- listOf ((,) <$> arbitrary <*> arbitrary)
+    return $ fromList' pairs
 
--- monoidAssoc :: (Eq m, Monoid m) => m -> m -> m -> Bool
--- monoidAssoc a b c = (a <> (b <> c)) == ((a <> b) <> c)
+monoidAssoc :: (Eq m, Monoid m) => m -> m -> m -> Bool
+monoidAssoc a b c = (a <> (b <> c)) == ((a <> b) <> c)
 
--- monoidLeftIdentity :: (Eq m, Monoid m) => m -> Bool
--- monoidLeftIdentity a = (mempty <> a) == a
+monoidLeftIdentity :: (Eq m, Monoid m) => m -> Bool
+monoidLeftIdentity a = (mempty <> a) == a
 
--- monoidRightIdentity :: (Eq m, Monoid m) => m -> Bool
--- monoidRightIdentity a = (a <> mempty) == a
+monoidRightIdentity :: (Eq m, Monoid m) => m -> Bool
+monoidRightIdentity a = (a <> mempty) == a
 
--- countBlackHeight :: (Ord (a)) => RBDictionary a b -> Int -> Maybe Int
--- countBlackHeight Leaf n = Just n + 1
--- countBlackHeight d@Node{}  n = if lHeight == rHeight then Just lHeight else Nothing
---   where
---     addition = if color d == Black then 1 else 0
---     lHeight = countBlackHeight (left d) $ n + 1
---     rHeight = countBlackHeight (right d) $ n + 1
+redblackColorInvariant :: (Ord a) => RBDictionary a b -> Bool
+redblackColorInvariant d = isColorlyValid d
+
+redblackHeightInvariant :: (Ord a) => RBDictionary a b -> Bool
+redblackHeightInvariant d = isHeightvalid d
+
+redblackFullInvariant :: (Ord a) => RBDictionary a b -> Bool
+redblackFullInvariant d = isColorlyValid d && isHeightvalid d
+
+redblackColorInvariantAfterActions :: (Ord a) => RBDictionary a b -> [a] -> [(a, b)] -> Bool
+redblackColorInvariantAfterActions d rmls insls = isColorlyValid insd
+  where
+    rmd = gorm d rmls
+      where
+        gorm dict [] = dict
+        gorm dict (x : xs) = gorm (remove' x dict) xs
+    insd = goins rmd insls
+      where
+        goins dict [] = dict
+        goins dict (x : xs) = goins (uncurry insert' x dict) xs
+
+redblackHeightInvariantAfterActions :: (Ord a) => RBDictionary a b -> [a] -> [(a, b)] -> Bool
+redblackHeightInvariantAfterActions d rmls insls = isHeightvalid insd
+  where
+    rmd = gorm d rmls
+      where
+        gorm dict [] = dict
+        gorm dict (x : xs) = gorm (remove' x dict) xs
+    insd = goins rmd insls
+      where
+        goins dict [] = dict
+        goins dict (x : xs) = goins (uncurry insert' x dict) xs
+
+redblackFullInvariantAfterActions :: (Ord a) => RBDictionary a b -> [a] -> [(a, b)] -> Bool
+redblackFullInvariantAfterActions d rmls insls = isColorlyValid insd && isHeightvalid insd
+  where
+    rmd = gorm d rmls
+      where
+        gorm dict [] = dict
+        gorm dict (x : xs) = gorm (remove' x dict) xs
+    insd = goins rmd insls
+      where
+        goins dict [] = dict
+        goins dict (x : xs) = goins (uncurry insert' x dict) xs

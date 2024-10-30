@@ -1,0 +1,68 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/**'
+      - 'src/**'
+      - 'app/**'
+      - 'test/**'
+      - '**.yaml'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cabal: ["3.10"]
+        stack: ["3.1.1"]
+        ghc: ["9.6.6"]
+    env:
+      CONFIG: "--bench --pedantic  --system-ghc"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Haskell
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          cabal-version: ${{ matrix.cabal }}
+          enable-stack: true
+          stack-version: ${{ matrix.stack }}
+      - run: stack build $CONFIG
+  lint_formatter:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Set up HLint"
+        uses: haskell-actions/hlint-setup@v2
+        with:
+          version: "3.6.1"
+
+      - name: "Run HLint"
+        uses: haskell-actions/hlint-run@v2
+        with:
+          path: '["src/", "test/", "app/"]'
+          fail-on: warning
+  tests:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cabal: ["3.10"]
+        stack: ["3.1.1"]
+        ghc: ["9.6.6"]
+    env:
+      CONFIG: --system-ghc
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Haskell
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          cabal-version: ${{ matrix.cabal }}
+          enable-stack: true
+          stack-version: ${{ matrix.stack }}
+      - run: stack build $CONFIG
+      - run: stack test $CONFIG
