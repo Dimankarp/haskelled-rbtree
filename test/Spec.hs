@@ -1,4 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Monoid law, left identity" #-}
+{-# HLINT ignore "Monoid law, right identity" #-}
 
 import Data.Maybe (isJust, isNothing)
 import RBTree
@@ -117,10 +120,10 @@ monoidRightIdentity :: (Eq m, Monoid m) => m -> Bool
 monoidRightIdentity a = (a <> mempty) == a
 
 redblackColorInvariant :: (Ord a) => RBDictionary a b -> Bool
-redblackColorInvariant d = isColorlyValid d
+redblackColorInvariant = isColorlyValid
 
 redblackHeightInvariant :: (Ord a) => RBDictionary a b -> Bool
-redblackHeightInvariant d = isHeightvalid d
+redblackHeightInvariant = isHeightvalid
 
 redblackFullInvariant :: (Ord a) => RBDictionary a b -> Bool
 redblackFullInvariant d = isColorlyValid d && isHeightvalid d
