@@ -1,11 +1,11 @@
--- For RBTree data
+-- For RBDictionary data
 {-# OPTIONS_GHC -Wno-partial-fields #-}
 
 {-
 
 Originally the implementation was based on my algorithm class
 explanation (or, more correctly, on a mix of an insert from algo
-class and removal from @sweirich - which itself based on Okasai).
+class and removal from @sweirich - which itself is ased on Okasaki).
 
 Since it look a bit out of order and really messy (mostly because
 implementation from my algo classes really favored Top-down approach -
@@ -17,7 +17,7 @@ to insertion and Matt Might's removal (https://matt.might.net/articles/red-black
 
 -}
 
-module RBTree (lookup', insert', fromList', RBDictionary (..), Color (..), foldr'', foldl'', map', filter', remove') where
+module RBTree (lookup', insert', fromList', RBDictionary (..), foldr'', foldl'', map', filter', remove') where
 
 -- Order is significant for redder & blacker
 data Color
@@ -58,39 +58,32 @@ isBB Node {color = BB} = True
 isBB BBLeaf = True
 isBB _ = False
 
--- instance (Ord a) => Semigroup (RBDictionary a b) where
---   (<>) :: RBDictionary a b -> RBDictionary a b -> RBDictionary a b
---   (<>) = foldr'' (\(k, v) acc -> insert' k v acc)
+instance (Ord a) => Semigroup (RBDictionary a b) where
+  (<>) = foldr'' (\(k, v) acc -> insert' k v acc)
 
--- instance (Ord a) => Monoid (RBDictionary a b) where
---   mempty :: RBDictionary a b
---   mempty = Leaf
-
---   mconcat :: [RBDictionary a b] -> RBDictionary a b
---   mconcat dicts = go dicts Leaf
---     where
---       go [] n = n
---       go (d : ds) n = go ds (n <> d)
-
-instance (Eq b, Ord a) => Eq (RBDictionary a b) where
-  (==) a b = aInB && bInA
+instance (Ord a) => Monoid (RBDictionary a b) where
+  mempty = Leaf
+  mconcat dicts = go dicts Leaf
     where
-      aInB =
-        foldl''
-          ( \(k, v) acc -> case lookup' k b of
-              Just value -> (value == v) && acc
-              Nothing -> False
-          )
-          True
-          a
-      bInA =
-        foldl''
-          ( \(k, v) acc -> case lookup' k a of
-              Just value -> (value == v) && acc
-              Nothing -> False
-          )
-          True
-          b
+      go [] n = n
+      go (d : ds) n = go ds (n <> d)
+
+{-
+
+Should be more effective than folding into list
+  and checking linearly because of LAZINESS.
+  Obviously, still O(n) though.
+
+-}
+instance (Eq b, Ord a) => Eq (RBDictionary a b) where
+  (==) a b =
+    and $
+      zipWith
+        (\(k1, v1) (k2, v2) -> k1 == k2 && v1 == v2)
+        (foldr'' join [] a)
+        (foldr'' join [] b)
+    where
+      join (k, v) acc = (k, v) : acc
 
 {-
 
@@ -201,6 +194,8 @@ balance (Node BB x xv a (Node R z zv (Node R y yv b c) d)) = Node B y yv (Node B
 balance (Node BB z zv (Node NB x xv (Node B w wv a b) (Node B y yv c d)) e) = Node B y yv (balance $ Node B x xv (Node R w wv a b) c) (Node B z zv d e)
 balance (Node BB z zv a (Node NB x xv (Node B w wv b c) (Node B y yv d e))) = Node B w wv (Node B z zv a b) (balance $ Node B x xv c (Node R y yv d e))
 balance n = n
+
+
 
 foldr'' :: (Ord a) => ((a, b) -> c -> c) -> c -> RBD a b -> c
 foldr'' _ acc Leaf = acc

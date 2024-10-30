@@ -1,4 +1,4 @@
-import Data.Maybe (isNothing)
+import Data.Maybe (isJust, isNothing)
 import RBTree
 import Test.HUnit
 import Test.QuickCheck
@@ -13,32 +13,51 @@ main = do
 equalityTest :: Test
 equalityTest = TestCase (assertEqual "Simple Equality" a b)
   where
-    a =  fromList' [(1,2), (4, 4), (6,8), (9, 10)]
-    b = fromList' [(9,10), (4, 4), (6,8), (1, 2)]
- 
--- inequalityTest :: Test
--- inequalityTest = TestCase (assertBool "Simple Ineqaulity" (a==b))
---   where
---     a =  fromList' [(1,2), (4, 4), (6,8), (9, 10)]
---     b = fromList' [(9,10), (4, 4), (6,8)]
+    a = fromList' [(1 :: Int, 2 :: Int), (4, 4), (6, 8), (9, 10)]
+    b = fromList' [(9, 10), (4, 4), (6, 8), (1, 2)]
 
-conseqInsert :: Test
-conseqInsert = TestCase (assertEqual "Conseq new insert" a b)
+inequalityTest :: Test
+inequalityTest = TestCase (assertBool "Simple Ineqaulity" (a /= b))
   where
-    a = insert' 1001 1001 (fromList' [(x, x) | x <- [1 .. 1000 :: Integer]])
-    b = fromList' [(x, x) | x <- [1 .. 1001]]
+    a = fromList' [(1 :: Int, 2 :: Int), (4, 4), (6, 8), (9, 10)]
+    b = fromList' [(9, 10), (4, 4), (6, 8)]
+
+checkLookup :: (Ord a, Show a) => RBDictionary a b -> (a, b) -> Assertion
+checkLookup d (k, v) = do
+  assertBool ("Key " ++ show k ++ " should now be in dict ") $ isJust $ lookup' k nd
+  where
+    nd = insert' k v d
+
+checkInsert :: Test
+checkInsert =
+  TestCase
+    ( do
+        let list = [(x, x) | x <- [1 :: Int .. 1001]]
+            d = fromList' list
+        mapM_ (checkLookup d) list
+    )
+
+checkInsertFull :: Test
+checkInsertFull =
+  TestCase (assertBool "All elements must be in dictionary" $ and ls)
+    where list = [(x, x) | x <- [1 .. 1000 :: Int]]
+          d  = fromList' list
+          ls = [fst v == Just (snd v) | v <- zip (map (flip lookup' d . fst) list) (map snd list)]
+
+checkRemoval :: (Ord a, Show a) => RBDictionary a b -> a -> Assertion
+checkRemoval d k = do
+  assertBool ("Key " ++ show k ++ " should not be in dict ") $ isNothing $ lookup' k nd
+  where
+    nd = remove' k d
 
 conseqRemoval :: Test
-conseqRemoval = TestCase (assertEqual "Conseq removal" a b)
-  where
-    a = insert' 1001 1001 (fromList' [(x, x) | x <- [1 .. 1000 :: Integer]])
-    b = fromList' [(x, x) | x <- [1 .. 1001]]
-
-
-checkFail :: Test
-checkFail = TestCase (assertEqual "Conseq new insert" a True)
-  where
-    a = isNothing (lookup' 1001 (fromList' [(x, x) | x <- [1 .. 1000 :: Integer]]))
+conseqRemoval =
+  TestCase
+    ( do
+        let list = [(x, x) | x <- [1 :: Int .. 1001]]
+            d = fromList' list
+        mapM_ (checkRemoval d . fst) list
+    )
 
 checkMap :: Test
 checkMap = TestCase (assertEqual "Mapping to squares" a b)
@@ -55,8 +74,11 @@ checkFold = TestCase (assertEqual "Folding to sum" a b)
 tests :: Test
 tests =
   TestList
-    [ TestLabel "Consequtive Insert" conseqInsert,
-      TestLabel "Check for non existent value" checkFail,
+    [ TestLabel "Equality check" equalityTest,
+      TestLabel "Inequlity check" inequalityTest,
+      TestLabel "Consequtive Insert" checkInsert,
+      TestLabel  "Full lookup check after all inserts" checkInsertFull,
+      TestLabel "Consequtive Removal" conseqRemoval,
       TestLabel "Mapping" checkMap,
       TestLabel "Folding to sum" checkFold
     ]
