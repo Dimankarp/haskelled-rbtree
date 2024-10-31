@@ -3,7 +3,7 @@
 
 {-
 
-Originally the implementation was based on my algorithm class
+Originally the implementation was based on my algorithms class
 explanation (or, more correctly, on a mix of an insert from algo
 class and removal from @sweirich - which itself is ased on Okasaki).
 
@@ -58,6 +58,11 @@ isBB Node {color = BB} = True
 isBB BBLeaf = True
 isBB _ = False
 
+{-
+=======================
+Monoid implementation
+=======================
+-}
 instance (Ord a) => Semigroup (RBDictionary a b) where
   (<>) = foldr'' (\(k, v) acc -> insert' k v acc)
 
@@ -131,14 +136,19 @@ insertImpl' k v n@Node {key = nk, left = nl, right = nr}
   | otherwise = error "unreachable"
 insertImpl' _ _ BBLeaf = error "double black leaf in lookup context"
 
+{-
+=======================
+Remove implementation
+  for explanation check header of this file
+=======================
+-}
 remove' :: (Ord a) => a -> RBD a b -> RBD a b
-remove' k n@Node {} = new 
+remove' k n@Node {} = new
   where
     new = case removeImpl' k n of
-      node@Node{} -> node{color=B}
+      node@Node {} -> node {color = B}
       Leaf -> Leaf
       BBLeaf -> Leaf
-
 remove' _ n = n
 
 removeImpl' :: (Ord a) => a -> RBD a b -> RBD a b
@@ -173,6 +183,10 @@ removeNode n@Node {left = Node {}, right = nr@Node {}} = bubble $ n {val = val m
     minNode = findMin nr
 removeNode _ = error "all expected matchings failed, either invatiant is broken or BBLeaf in removeNode context"
 
+{-
+ Passes double black nodes up
+  the tree
+-}
 bubble :: (Ord a) => RBD a b -> RBD a b
 bubble n@Node {left = nl, right = nr}
   | isBB nl || isBB nr = balance $ blacker n {left = redder nl, right = redder nr}
@@ -200,6 +214,11 @@ balance (Node BB z zv (Node NB x xv (Node B w wv a b) (Node B y yv c d)) e) = No
 balance (Node BB z zv a (Node NB x xv (Node B w wv b c) (Node B y yv d e))) = Node B w wv (Node B z zv a b) (balance $ Node B x xv c (Node R y yv d e))
 balance n = n
 
+{-
+=======================
+Utilities implementation
+=======================
+-}
 foldr'' :: (Ord a) => ((a, b) -> c -> c) -> c -> RBD a b -> c
 foldr'' _ acc Leaf = acc
 foldr'' f acc n@Node {} = foldr'' f rightAcc (left n)
@@ -221,6 +240,16 @@ map' _ BBLeaf = error "Double Black leaf in map context"
 
 filter' :: (Ord a) => (b -> Bool) -> RBD a b -> RBD a b
 filter' p = foldr'' (\(k, v) d -> if p v then insert' k v d else d) (fromList' [])
+
+instance (Ord a) => Functor (RBDictionary a) where
+  fmap = map'
+
+instance (Ord a) => Foldable (RBDictionary a) where
+  foldr _ acc Leaf = acc
+  foldr f acc n@Node {} = foldr f rightAcc (left n)
+    where
+      rightAcc = f (val n) $ foldr f acc (right n)
+  foldr _ _ BBLeaf = error "Double Black leaf in foldr context"
 
 {-
 =======================
@@ -246,7 +275,7 @@ isHeightvalid :: (Ord a) => RBD a b -> Bool
 isHeightvalid Leaf = True
 isHeightvalid d@Node {} = snd $ go d
   where
-    go Leaf = (1::Integer, True)
+    go Leaf = (1 :: Integer, True)
     go Node {color = col, left = nl, right = nr} =
       ( fst l
           + if col == B
